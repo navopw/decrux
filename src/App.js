@@ -3,7 +3,9 @@ import Peer from 'peerjs'
 import randomWords from 'random-words'
 
 import { Header, Grid, Button, Segment, Divider, Input, Form, Confirm } from 'semantic-ui-react'
-import WebcamSegment from './WebcamSegment'
+
+import InputChooser from './components/InputChooser'
+import WebcamSegment from './components/WebcamSegment'
 
 export default function App() {
 	const [peer, setPeer] = React.useState()
@@ -23,12 +25,19 @@ export default function App() {
 
 	const acceptCall = async () => {
 		try {
+			const validated = await validateMediaDevices()
+
+			if (!validated) {
+				console.log("Camera doesnt work")
+				return
+			}
+
 			const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
 			incomingCall.answer(stream)
 
 			incomingCall.on('stream', (stream) => addVideoStream(incomingCall.peer, stream))
 		} catch (error) {
-			console.log(error)
+			console.error(error)
 		} finally {
 			setIncomingCall(null)
 		}
@@ -36,29 +45,59 @@ export default function App() {
 
 	const connectSubmit = async () => {
 		try {
+			const validated = await validateMediaDevices()
+
+			if (!validated) {
+				console.log("Camera doesnt work")
+				return
+			}
+
 			const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
 			const call = peer.call(targetId, stream)
 
 			call.on('stream', (stream) => addVideoStream(targetId, stream))
 		} catch (error) {
-			console.log(error)
+			console.error(error)
+		}
+	}
+
+	const validateMediaDevices = async () => {
+		if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+			console.log("enumerateDevices() not supported.")
+			return Promise.reject()
+		}
+		  
+		// List cameras and microphones.
+		try {
+			const devices = await navigator.mediaDevices.enumerateDevices()
+			for (let device of devices) {
+				console.log(device)
+
+				if (device.kind === "videoinput") {
+					return Promise.resolve(true)
+				}
+			}
+		} catch (error) {
+			return Promise.reject(new Error("Failed listing devices"))
 		}
 	}
 
 	const addVideoStream = (peer, stream) => {
 		setVideoStreams(previous => {
-			let exists = false
+			const exist = false
 
-			previous.forEach(element => {
-				if (element.stream.id === stream.id) {
-					exists = true
+			for (let videoStream of videoStreams) {
+				if (videoStream.peer === peer) {
+					exist = true
 				}
-			})
+			}
 
-			if (!exists) 
-				return [...previous, { peer, stream }]
-			else
+			if (exist) {
 				return previous
+			} else {
+				return [...previous, { peer, stream }]
+			}
+			
 		})
 	}
 
@@ -84,6 +123,7 @@ export default function App() {
 							</Form.Field>
 						</Form>
 					</Segment>
+					<InputChooser/>
 				</Grid.Column>
 				<Grid.Column>
 					{
